@@ -289,7 +289,7 @@ impl ColladaDocument {
         let skeleton_ids: Vec<&str> = pre_order_iter(visual_scene)
             .filter(|e| e.name == "skeleton")
             .filter_map(|s| if let CharacterNode(ref id) = s.children[0] { Some(&id[..]) } else { None })
-            .map(|id| id.trim_left_matches('#'))
+            .map(|id| id.trim_start_matches('#'))
             .collect();
 
         if skeleton_ids.is_empty() {
@@ -357,7 +357,7 @@ impl ColladaDocument {
 
         let skeleton_name = controller_element.get_attribute("name", None)?;
         let skin_element = controller_element.get_child("skin", self.get_ns())?;
-        let object_name = skin_element.get_attribute("source", None)?.trim_left_matches('#');
+        let object_name = skin_element.get_attribute("source", None)?.trim_start_matches('#');
 
         let vertex_weights_element = (skin_element.get_child("vertex_weights", self.get_ns()))?;
         let vertex_weights = (self.get_vertex_weights(vertex_weights_element))?;
@@ -490,6 +490,7 @@ impl ColladaDocument {
                 let bind_data_opt = bind_data_set.bind_data.iter().find(|bind_data| bind_data.object_name == id);
 
                 if let Some(bind_data) = bind_data_opt {
+                    let skeleton_name = &bind_data.skeleton_name;
                     // Build an array of joint weights for each vertex
                     // Initialize joint weights array with no weights for any vertex
                     let mut joint_weights = vec![JointWeights { joints: [0; 4], weights: [0.0; 4] }; positions.len()];
@@ -499,8 +500,10 @@ impl ColladaDocument {
                         let vertex_joint_weights: &mut JointWeights = &mut joint_weights[vertex_weight.vertex];
 
                         if let Some((next_index, _)) = vertex_joint_weights.weights.iter().enumerate().find(|&(_, weight)| *weight == 0.0) {
+
+                            let joint_name = format!("{}_{}", skeleton_name, joint_name);
                             if let Some((joint_index, _)) = skeleton.joints.iter().enumerate()
-                                .find(|&(_, j)| &j.name == joint_name) {
+                                .find(|&(_, j)| &j.name == &joint_name) {
                                 vertex_joint_weights.joints[next_index] = joint_index;
                                 vertex_joint_weights.weights[next_index] = bind_data.weights[vertex_weight.weight];
                             } else {
