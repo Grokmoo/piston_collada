@@ -311,6 +311,8 @@ impl ColladaDocument {
         let mut joints = Vec::new();
         let mut bind_poses = Vec::new();
 
+        let skeleton_name = format!("{}_", bind_data.skeleton_name);
+
         for (joint_index, (joint_element, depth)) in pre_order_with_depth_iter(root_element)
             .filter(|&(e, _)| e.name == "node" && has_attribute_with_value(e, "type", "JOINT"))
             .enumerate()
@@ -321,7 +323,11 @@ impl ColladaDocument {
                 parent_index_stack.pop();
             }
 
-            let joint_name = joint_element.get_attribute("id", None).unwrap().to_string();
+            let mut joint_name = joint_element.get_attribute("id", None).unwrap().to_string();
+
+            if joint_name.starts_with(&skeleton_name) {
+                joint_name.replace_range(0..skeleton_name.len(), "");
+            }
 
             let mut joint_names_with_bind_pose = bind_data.joint_names.iter().zip(bind_data.inverse_bind_poses.iter());
             let inverse_bind_pose = match joint_names_with_bind_pose.find(|&(name, _)| *name == joint_name) {
@@ -490,7 +496,6 @@ impl ColladaDocument {
                 let bind_data_opt = bind_data_set.bind_data.iter().find(|bind_data| bind_data.object_name == id);
 
                 if let Some(bind_data) = bind_data_opt {
-                    let skeleton_name = &bind_data.skeleton_name;
                     // Build an array of joint weights for each vertex
                     // Initialize joint weights array with no weights for any vertex
                     let mut joint_weights = vec![JointWeights { joints: [0; 4], weights: [0.0; 4] }; positions.len()];
@@ -500,10 +505,8 @@ impl ColladaDocument {
                         let vertex_joint_weights: &mut JointWeights = &mut joint_weights[vertex_weight.vertex];
 
                         if let Some((next_index, _)) = vertex_joint_weights.weights.iter().enumerate().find(|&(_, weight)| *weight == 0.0) {
-
-                            let joint_name = format!("{}_{}", skeleton_name, joint_name);
                             if let Some((joint_index, _)) = skeleton.joints.iter().enumerate()
-                                .find(|&(_, j)| &j.name == &joint_name) {
+                                .find(|&(_, j)| &j.name == joint_name) {
                                 vertex_joint_weights.joints[next_index] = joint_index;
                                 vertex_joint_weights.weights[next_index] = bind_data.weights[vertex_weight.weight];
                             } else {
